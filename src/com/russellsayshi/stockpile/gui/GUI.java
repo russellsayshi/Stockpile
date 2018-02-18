@@ -1,8 +1,10 @@
 package com.russellsayshi.stockpile.gui;
 
 import com.russellsayshi.stockpile.inventory.*;
+import com.russellsayshi.stockpile.client.*;
 import javax.swing.*;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.util.*;
 import java.io.*;
 
@@ -18,6 +20,8 @@ public class GUI {
 	private JList<Entry> entryJList = new JList<>();
 	private List<Entry> entryList = new ArrayList<>();
 	private EntryListModel listModel = new EntryListModel(entryList);
+	private ServerConnection connectionToServer = new ServerConnection("localhost");
+	private JLabel serverStatus;
 
 	/**
 	 * Entry point of the application. Creates a GUI.
@@ -47,33 +51,53 @@ public class GUI {
 	}
 
 	/**
-	 * Initializes the list with the stored items
-	 * 
-	 * @return was successful
+	 * Initializes the list with the stored items.
+	 * Only call it once.
 	 */
-	private boolean populateList() {
+	private void connectToServerAndPopulateList() {
+		if(entryList.size() > 0) throw new IllegalStateException("Cannot populate list again.");
 		try {
-			Optional<File> listFile = FileFetcher.getFileHandle();
-			if(!listFile.isPresent()) {
-				//the user did not pick a file
-				return false;
+			List<String> serverDatabase = connectionToServer.connectAndFetchDatabase();
+			for(String s : serverDatabase) {
+				entryList.add(new Entry(s));
 			}
-
-			File file = listFile.get();
-			try(Scanner scan = new Scanner(file)) {
-				while(scan.hasNextLine()) {
-					entryList.add(new Entry(scan.nextLine()));
-				}
-			} catch(FileNotFoundException fnfe) {
-				fnfe.printStackTrace();
-				return false;
-			} finally {
-				listModel.fireDataChanged();
-				return true;
-			}
+			listModel.fireDataChanged();
 		} catch(IOException ioe) {
 			ioe.printStackTrace();
-			return false;
+		}
+	}
+
+	/**
+	 * Initializes server change/update handlers.
+	 */
+	private void setupServerHandlers() {
+		connectionToServer.addServerStateChangeListener((a, b) -> handleServerStateChange(a, b));
+	}
+
+	/**
+	 * Handles state changes from the server.
+	 * Just lets the user know and then ignores it.
+	 *
+	 * @param state The new state of the server
+	 * @param info Optional additional info about the state change
+	 */
+	private void handleServerStateChange(ServerConnection.State state,
+			Optional<String> info) {
+		String additionalInfoString = "";
+		if(info.isPresent()) additionalInfoString = ": " + info.get();
+		switch(state) {
+			case CONNECTED:
+				serverStatus.setForeground(Color.GREEN);
+				serverStatus.setText("Connected!" + additionalInfoString);
+				break;
+			case DISCONNECTED:
+				serverStatus.setForeground(Color.BLACK);
+				serverStatus.setText("Disconnected!" + additionalInfoString);
+				break;
+			case ERROR:
+				serverStatus.setForeground(Color.RED);
+				serverStatus.setText("Error with server" + additionalInfoString);
+				break;
 		}
 	}
 
@@ -88,8 +112,8 @@ public class GUI {
 		JPanel panel = new JPanel(new BorderLayout());
 		frame.setContentPane(panel);
 		panel.add((searchBox = new JTextField("")), BorderLayout.NORTH);
-		if(!populateList()) System.exit(1);
 		panel.add(entryJList, BorderLayout.CENTER);
+		panel.add((serverStatus = new JLabel("No connection.")), BorderLayout.SOUTH);
 
 		//Show frame
 		setFrameIcon();
@@ -97,5 +121,9 @@ public class GUI {
 		frame.setLocationRelativeTo(null);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setVisible(true);
+
+		//Cool cool. Do stuff with server now
+		setupServerHandlers();
+		connectToServerAndPopulateList();
 	}
 }

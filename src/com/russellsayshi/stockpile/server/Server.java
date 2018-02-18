@@ -108,14 +108,18 @@ public class Server implements Runnable {
 			try {
 				connection.writeLock.lock();
 				try {
+					connection.writer.println("ACK_STOCKPILE_SERVER"); //let 'em know we're here
+
+					//send 'em over the current database
 					databaseLock.lock();
 					try {
 						for(Entry s : database) {
-							connection.writer.println("+" + s.getAbsoluteRepresentation());
+							connection.writer.println(s.getAbsoluteRepresentation());
 						}
 					} finally {
 						databaseLock.unlock();
 					}
+					connection.writer.println("BULK_DONE"); //tell 'em that's all from the database
 				} finally {
 					connection.writeLock.unlock();
 				}
