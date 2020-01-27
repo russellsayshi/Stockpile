@@ -71,7 +71,7 @@ public class GUI {
 	 * Initializes server change/update handlers.
 	 */
 	private void setupServerHandlers() {
-		connectionToServer.addServerStateChangeListener((a, b) -> handleServerStateChange(a, b));
+		connectionToServer.addStateChangeListener((a, b) -> handleServerStateChange(a, b));
 	}
 
 	/**
